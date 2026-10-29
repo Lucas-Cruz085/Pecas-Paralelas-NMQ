@@ -1,0 +1,12 @@
+# Cabeçalhos de segurança do Cloudflare Pages.
+# Ao mudar o script inline de tema em index.html, recalcule o hash sha256 do script-src.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-G/8+zjS7SKiCdFhYRmI9R6Grz+v4UmGn4FkgLWr3yx8=' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://lwzugamxsdxowputpuar.supabase.co; font-src 'self' data:; connect-src 'self' https://lwzugamxsdxowputpuar.supabase.co wss://lwzugamxsdxowputpuar.supabase.co; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
