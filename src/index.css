@@ -2,6 +2,121 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Tokens do tema (oklch). Componentes usam só estes tokens, nunca cor fixa.
+  Para criar um token novo:
+    1. defina o valor em :root (tema claro);
+    2. defina o valor em .dark (tema noturno);
+    3. registre o nome em tailwind.config.js (theme.extend.colors).
+  Valores "L C H" (sem oklch()) aceitam opacidade no Tailwind (ex.: bg-brand/15).
+  Valores com oklch() completo (bordas) não aceitam o modificador de opacidade.
+*/
+@layer base {
+  :root {
+    --background: 0.975 0.004 250;
+    --foreground: 0.24 0.04 260;
+    --card: 1 0 0;
+    --card-foreground: 0.24 0.04 260;
+    --popover: 1 0 0;
+    --popover-foreground: 0.24 0.04 260;
+    --muted: 0.955 0.008 250;
+    --muted-foreground: 0.52 0.03 257;
+    --table-head: 0.965 0.008 250;
+    --border: oklch(0.929 0.013 255.5);
+    --input: oklch(0.929 0.013 255.5);
+
+    --brand: 0.83 0.17 84;
+    --brand-foreground: 0.16 0.01 260;
+    /* Texto e ícone de destaque sobre fundo claro (a marca pura não tem contraste AA no branco). */
+    --brand-strong: 0.5 0.12 70;
+
+    --ink: 0.21 0.04 265;
+    --ink-2: 0.25 0.035 262;
+    --ink-foreground: 0.98 0 0;
+    --ink-muted: 0.7 0.03 255;
+    --ink-border: oklch(1 0 0 / 10%);
+
+    --info: 0.62 0.17 255;
+    --success: 0.6 0.15 155;
+    --warning: 0.68 0.16 60;
+    --destructive: 0.58 0.21 25;
+
+    --shadow-color: 0.3 0.04 260;
+    --radius: 1rem;
+    color-scheme: light;
+  }
+
+  .dark {
+    --background: 0.16 0.03 262;
+    --foreground: 0.97 0.005 250;
+    --card: 0.22 0.035 264;
+    --card-foreground: 0.97 0.005 250;
+    --popover: 0.22 0.035 264;
+    --popover-foreground: 0.97 0.005 250;
+    --muted: 0.28 0.03 262;
+    --muted-foreground: 0.75 0.02 255;
+    --table-head: 0.3 0.06 262;
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 14%);
+
+    --brand-strong: 0.83 0.17 84;
+
+    --info: 0.7 0.15 255;
+    --success: 0.72 0.15 155;
+    --warning: 0.78 0.15 60;
+    --destructive: 0.68 0.19 25;
+
+    --shadow-color: 0.05 0.02 262;
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  :focus-visible {
+    outline: 2px solid oklch(var(--brand));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: oklch(var(--brand) / 0.35);
+  }
+}
+
+@layer components {
+  .card-surface {
+    @apply rounded-2xl border border-border bg-card text-card-foreground;
+    box-shadow: 0 1px 2px oklch(var(--shadow-color) / 0.06), 0 4px 16px -8px oklch(var(--shadow-color) / 0.12);
+  }
+
+  .field {
+    @apply h-11 w-full rounded-xl border border-input bg-card px-3.5 text-sm text-foreground transition-colors;
+    @apply placeholder:text-muted-foreground/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30;
+    @apply disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  textarea.field {
+    @apply h-auto py-2.5;
+  }
+
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    @apply text-muted-foreground;
+  }
+
+  .shadow-brand {
+    box-shadow: 0 8px 24px -10px oklch(var(--brand) / 0.55);
+  }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -36,10 +151,121 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(203 213 225);
+  background: oklch(var(--muted-foreground) / 0.35);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(148 163 184);
+  background: oklch(var(--muted-foreground) / 0.6);
+}
+
+/* ---------- Troca de tema ---------- */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-theme-transition='out']::view-transition-old(root) {
+  z-index: 2;
+}
+
+html[data-theme-transition='out']::view-transition-new(root) {
+  z-index: 1;
+}
+
+html.theme-fade *,
+html.theme-fade *::before,
+html.theme-fade *::after {
+  transition:
+    background-color 720ms ease,
+    color 720ms ease,
+    border-color 720ms ease,
+    box-shadow 720ms ease,
+    fill 720ms ease,
+    stroke 720ms ease !important;
+}
+
+/* ---------- Login: moldura neon ---------- */
+
+@property --neon-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes neon-spin {
+  to { --neon-angle: 360deg; }
+}
+
+.neon-frame {
+  position: relative;
+  border-radius: 24px;
+  padding: 3px;
+  isolation: isolate;
+}
+
+.neon-frame::before,
+.neon-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--neon-angle),
+    oklch(var(--brand)) 0deg,
+    oklch(0.9 0.12 90) 70deg,
+    oklch(var(--brand)) 140deg,
+    transparent 140deg,
+    transparent 180deg,
+    oklch(var(--brand)) 180deg,
+    oklch(0.9 0.12 90) 250deg,
+    oklch(var(--brand)) 320deg,
+    transparent 320deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: neon-spin 5s linear infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.neon-frame::after {
+  filter: blur(10px);
+  opacity: 0.7;
+}
+
+.neon-paused .neon-frame::before,
+.neon-paused .neon-frame::after {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-frame::before,
+  .neon-frame::after {
+    animation: none;
+  }
+}
+
+/* ---------- Impressão (relatório de logs) ---------- */
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  body {
+    background: white !important;
+  }
 }

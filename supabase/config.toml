@@ -1,0 +1,8 @@
+project_id = "lwzugamxsdxowputpuar"
+
+# Login e pedido de troca de senha são chamados antes de existir sessão.
+[functions.login]
+verify_jwt = false
+
+[functions.request-password-reset]
+verify_jwt = false

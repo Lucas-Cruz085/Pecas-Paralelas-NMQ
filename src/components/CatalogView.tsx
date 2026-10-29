@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
-import { Search, Package, AlertCircle, Loader2, ChevronRight, WifiOff } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Search, Package, AlertCircle, Loader2, WifiOff, ImageIcon, X, FileUp } from 'lucide-react';
 import { supabase, getErrorMessage, type Part } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/format';
 
 interface CatalogViewProps {
   onSelectPart: (part: Part) => void;
+  onGoToImport?: () => void;
   refreshKey?: number;
 }
+
+const PAGE_SIZE = 24;
 
 // Vírgulas, parênteses e aspas quebram a sintaxe do filtro .or() do PostgREST;
 // % e _ são curingas do ILIKE e * é o curinga alternativo aceito na URL.
@@ -14,201 +17,282 @@ function sanitizeSearchTerm(query: string): string {
   return query.replace(/[,()"'\\%_*]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export default function CatalogView({ onSelectPart, refreshKey = 0 }: CatalogViewProps) {
+function buildQuery(term: string, onlyWithPhoto: boolean) {
+  let query = supabase.from('parts').select('*', { count: 'exact' });
+
+  if (term) {
+    const pattern = `%${term}%`;
+    const compactCode = term.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const filters = [
+      `part_number.ilike.${pattern}`,
+      `alt_code.ilike.${pattern}`,
+      `description.ilike.${pattern}`,
+      `supplier.ilike.${pattern}`,
+      `brand.ilike.${pattern}`,
+      `oem_reference.ilike.${pattern}`,
+    ];
+    // "30-925633" ou "30925633" também encontram "30/925633P".
+    if (compactCode) filters.push(`code_search.ilike.%${compactCode}%`);
+    query = query.or(filters.join(','));
+  }
+
+  if (onlyWithPhoto) query = query.not('photo_url', 'is', null);
+  return query.order('part_number');
+}
+
+export default function CatalogView({ onSelectPart, onGoToImport, refreshKey = 0 }: CatalogViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [results, setResults] = useState<Part[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [onlyWithPhoto, setOnlyWithPhoto] = useState(false);
+  const [parts, setParts] = useState<Part[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
-  useEffect(() => {
-    const term = sanitizeSearchTerm(searchQuery);
-    const requestId = ++requestIdRef.current;
+  const term = sanitizeSearchTerm(searchQuery);
 
-    if (!term) {
-      setResults([]);
-      setHasSearched(false);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      setHasSearched(true);
-      setError(null);
-
-      const pattern = `%${term}%`;
-      const { data, error: queryError } = await supabase
-        .from('parts')
-        .select('*')
-        .or(
-          `part_number.ilike.${pattern},description.ilike.${pattern},brand.ilike.${pattern},oem_reference.ilike.${pattern}`
-        )
-        .order('part_number');
-
+  const fetchPage = useCallback(
+    async (from: number) => {
+      const requestId = requestIdRef.current;
+      const { data, count, error: queryError } = await buildQuery(term, onlyWithPhoto).range(
+        from,
+        from + PAGE_SIZE - 1
+      );
       if (requestId !== requestIdRef.current) return;
 
       if (queryError) {
-        console.error('Search error:', queryError);
+        console.error('Catalog error:', queryError);
         setError(getErrorMessage(queryError, 'Não foi possível consultar o catálogo.'));
-        setResults([]);
-      } else {
-        setResults((data as Part[]) ?? []);
+        if (from === 0) setParts([]);
+        return;
       }
-      setLoading(false);
-    }, 300);
+      setError(null);
+      setTotal(count ?? 0);
+      setParts((prev) => (from === 0 ? ((data as Part[]) ?? []) : [...prev, ...((data as Part[]) ?? [])]));
+    },
+    [term, onlyWithPhoto]
+  );
 
+  useEffect(() => {
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      await fetchPage(0);
+      if (requestId === requestIdRef.current) setLoading(false);
+    }, term ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [searchQuery, refreshKey]);
+  }, [fetchPage, refreshKey, term]);
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    await fetchPage(parts.length);
+    setLoadingMore(false);
+  };
+
+  const hasFilter = Boolean(term) || onlyWithPhoto;
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Page title */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Catálogo de Peças Paralelas</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Pesquise por código (part number) ou descrição da peça paralela.
+        <h1 className="text-2xl font-bold text-foreground">Catálogo de Peças Paralelas</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Pesquise por código (Cód. JCB), Cód. Diversos / referência, descrição ou fornecedor.
         </p>
       </div>
 
       {/* Search bar */}
-      <div className="relative mb-6">
-        <div className="relative">
-          <Search
-            size={20}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-          />
+      <div className="relative mb-4">
+        <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Digite o código, referência ou descrição da peça..."
+          className="w-full pl-12 pr-12 py-3.5 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all shadow-sm"
+          autoFocus
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Limpar pesquisa"
+          >
+            <X size={18} />
+          </button>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <p className="text-sm text-muted-foreground">
+          {loading ? (
+            'Carregando...'
+          ) : (
+            <>
+              <b className="text-foreground">{total}</b> {total === 1 ? 'peça' : 'peças'}
+              {term && <> para "{searchQuery.trim()}"</>}
+            </>
+          )}
+        </p>
+        <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer select-none">
           <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Digite o código (part number) ou descrição da peça..."
-            className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
-            autoFocus
+            type="checkbox"
+            checked={onlyWithPhoto}
+            onChange={(e) => setOnlyWithPhoto(e.target.checked)}
+            className="w-4 h-4 rounded border-input text-brand-strong focus:ring-brand/40"
           />
-        </div>
+          <ImageIcon size={16} className="text-muted-foreground" />
+          Somente com foto
+        </label>
       </div>
 
       {/* Results */}
-      {!hasSearched && !loading && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-            <Search size={36} className="text-slate-300" />
-          </div>
-          <h3 className="text-lg font-semibold text-slate-600 mb-1">
-            Faça sua pesquisa
-          </h3>
-          <p className="text-slate-400 text-sm max-w-md">
-            Digite acima o código ou descrição da peça paralela que você procura.
-          </p>
-        </div>
-      )}
-
       {loading && (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 size={32} className="text-blue-500 animate-spin mb-3" />
-          <p className="text-slate-500 text-sm">Pesquisando...</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {Array.from({ length: 10 }, (_, i) => (
+            <div key={i} className="bg-card border border-border rounded-2xl overflow-hidden animate-pulse">
+              <div className="aspect-square bg-muted" />
+              <div className="p-4 space-y-2">
+                <div className="h-4 w-24 bg-muted rounded" />
+                <div className="h-4 w-full bg-muted rounded" />
+                <div className="h-5 w-20 bg-muted rounded" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {!loading && error && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mb-4">
-            <WifiOff size={36} className="text-red-400" />
+          <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+            <WifiOff size={36} className="text-destructive" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-600 mb-1">
-            Erro ao consultar o catálogo
-          </h3>
-          <p className="text-slate-400 text-sm max-w-md">{error}</p>
+          <h3 className="text-lg font-semibold text-foreground/80 mb-1">Erro ao consultar o catálogo</h3>
+          <p className="text-muted-foreground text-sm max-w-md">{error}</p>
         </div>
       )}
 
-      {!loading && !error && hasSearched && results.length === 0 && (
+      {!loading && !error && parts.length === 0 && hasFilter && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mb-4">
-            <AlertCircle size={36} className="text-amber-400" />
+          <div className="w-20 h-20 rounded-full bg-warning/10 flex items-center justify-center mb-4">
+            <AlertCircle size={36} className="text-warning" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-600 mb-1">
+          <h3 className="text-lg font-semibold text-foreground/80 mb-1">
             Item paralelo inexistente ou não cadastrado
           </h3>
-          <p className="text-slate-400 text-sm max-w-md">
-            Não encontramos nenhuma peça paralela com "{searchQuery}".
-            Verifique o código ou descrição informados.
+          <p className="text-muted-foreground text-sm max-w-md">
+            {term
+              ? `Não encontramos nenhuma peça paralela com "${searchQuery.trim()}". Verifique o código ou descrição informados.`
+              : 'Nenhuma peça com foto cadastrada.'}
           </p>
         </div>
       )}
 
-      {!loading && !error && results.length > 0 && (
-        <>
-          <div className="mb-4 text-sm text-slate-500">
-            {results.length} {results.length === 1 ? 'peça encontrada' : 'peças encontradas'}
+      {!loading && !error && parts.length === 0 && !hasFilter && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Package size={36} className="text-muted-foreground/60" />
           </div>
-          <div className="grid gap-4">
-            {results.map((part) => (
-              <PartCard key={part.id} part={part} onClick={() => onSelectPart(part)} />
+          <h3 className="text-lg font-semibold text-foreground/80 mb-1">Catálogo vazio</h3>
+          <p className="text-muted-foreground text-sm max-w-md mb-4">
+            Importe a planilha de peças e as fotos para montar o catálogo.
+          </p>
+          {onGoToImport && (
+            <button
+              onClick={onGoToImport}
+              className="flex items-center gap-2 px-5 py-2.5 bg-brand text-brand-foreground text-sm font-medium rounded-xl hover:brightness-105 transition-colors"
+            >
+              <FileUp size={18} />
+              Importar peças
+            </button>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && parts.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {parts.map((part) => (
+              <ProductCard key={part.id} part={part} onClick={() => onSelectPart(part)} />
             ))}
           </div>
+
+          {parts.length < total && (
+            <div className="flex flex-col items-center gap-2 mt-8">
+              <p className="text-xs text-muted-foreground">
+                Exibindo {parts.length} de {total}
+              </p>
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="flex items-center gap-2 px-6 py-2.5 bg-card border border-border text-foreground text-sm font-medium rounded-xl hover:border-brand/60 hover:text-brand-strong transition-colors disabled:opacity-60"
+              >
+                {loadingMore && <Loader2 size={16} className="animate-spin" />}
+                Carregar mais peças
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
   );
 }
 
-function PartCard({ part, onClick }: { part: Part; onClick: () => void }) {
+function ProductCard({ part, onClick }: { part: Part; onClick: () => void }) {
   const inStock = part.stock_quantity > 0;
 
   return (
     <button
       onClick={onClick}
-      className="group flex items-center gap-4 bg-white border border-slate-200 rounded-xl p-5 text-left hover:border-blue-300 hover:shadow-lg transition-all duration-200"
+      className="group flex flex-col bg-card border border-border rounded-2xl overflow-hidden text-left hover:border-brand/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
     >
-      {/* Thumbnail / Icon */}
-      <div className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+      {/* Image */}
+      <div className="relative aspect-square bg-card border-b border-border flex items-center justify-center overflow-hidden">
         {part.photo_url ? (
-          <img src={part.photo_url} alt={part.description} className="w-full h-full object-cover" />
+          <img
+            src={part.photo_url}
+            alt={part.description}
+            loading="lazy"
+            className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
+          />
         ) : (
-          <Package size={28} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+          <div className="flex flex-col items-center gap-2 text-muted-foreground/60">
+            <Package size={48} strokeWidth={1.5} />
+            <span className="text-xs">Sem foto</span>
+          </div>
         )}
+        <span
+          className={`absolute top-2 left-2 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+            inStock ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
+          }`}
+        >
+          {inStock ? `${part.stock_quantity} em estoque` : 'Sem estoque'}
+        </span>
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="text-xs font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-            {part.part_number}
-          </span>
-          {part.brand && (
-            <span className="text-xs text-slate-500 font-medium">{part.brand}</span>
-          )}
-          <span
-            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-              inStock
-                ? 'bg-green-50 text-green-700'
-                : 'bg-red-50 text-red-700'
-            }`}
-          >
-            {inStock ? `${part.stock_quantity} un` : 'Sem estoque'}
+      <div className="flex flex-col flex-1 p-4">
+        <span className="self-start text-xs font-mono font-bold text-brand-strong bg-brand/10 px-2 py-0.5 rounded">
+          {part.part_number}
+        </span>
+        {part.alt_code && (
+          <span className="mt-1 text-[11px] font-mono text-muted-foreground truncate">Ref. {part.alt_code}</span>
+        )}
+        <p className="mt-2 text-sm font-semibold text-foreground leading-snug line-clamp-2 min-h-[2.5rem]">
+          {part.description}
+        </p>
+        {(part.supplier || part.brand) && (
+          <p className="mt-1 text-xs text-muted-foreground truncate">{part.supplier || part.brand}</p>
+        )}
+        <div className="mt-auto pt-3 flex items-end justify-between gap-2">
+          <p className="text-lg font-bold text-foreground">{formatCurrency(part.unit_price)}</p>
+          <span className="text-xs font-medium text-brand-strong opacity-0 group-hover:opacity-100 transition-opacity">
+            Ver detalhes
           </span>
         </div>
-        <p className="font-semibold text-slate-800 truncate">{part.description}</p>
-        <p className="text-sm text-slate-400 mt-0.5 truncate">
-          {part.category || 'Sem categoria'}
-          {part.oem_reference && ` • Ref. OEM: ${part.oem_reference}`}
-        </p>
       </div>
-
-      {/* Price */}
-      <div className="flex-shrink-0 text-right">
-        <p className="text-xs text-slate-400">Preço</p>
-        <p className="text-lg font-bold text-slate-800">{formatCurrency(part.unit_price)}</p>
-      </div>
-
-      <ChevronRight
-        size={20}
-        className="flex-shrink-0 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all"
-      />
     </button>
   );
 }

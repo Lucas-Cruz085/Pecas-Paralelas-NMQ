@@ -24,5 +24,11 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
     },
+  },
+  {
+    files: ['supabase/functions/**/*.ts'],
+    languageOptions: {
+      globals: { ...globals.browser, Deno: 'readonly' },
+    },
   }
 );

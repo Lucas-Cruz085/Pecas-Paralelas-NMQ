@@ -1,109 +1,80 @@
-import { useState } from 'react';
-import { Bell } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
-import CatalogView from '@/components/CatalogView';
-import RegisterView from '@/components/RegisterView';
-import PartDetailModal from '@/components/PartDetailModal';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import SetupNotice from '@/components/SetupNotice';
-import { isSupabaseConfigured, type Part } from '@/lib/supabase';
+import { AppShell } from '@/components/layout/AppShell';
+import { ToastProvider } from '@/components/ui/Toast';
+import { AuthProvider } from '@/features/auth/AuthProvider';
+import { RotaDeFluxo, RotaProtegida, SomenteAdmin } from '@/features/auth/guards';
+import { ROTAS } from '@/features/auth/resolverRota';
+import { StepUpProvider } from '@/features/auth/StepUp';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
-const viewTitles: Record<string, string> = {
-  catalog: 'Catálogo de Peças',
-  register: 'Cadastro de Peças',
-  settings: 'Configurações',
-  help: 'Ajuda',
-};
+const LoginPage = lazy(() => import('@/features/auth/LoginPage'));
+const MfaChallengePage = lazy(() => import('@/features/auth/MfaChallengePage'));
+const FirstAccessPage = lazy(() => import('@/features/auth/FirstAccessPage'));
+const MfaEnrollPage = lazy(() => import('@/features/auth/MfaEnrollPage'));
+const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage'));
+const CatalogoPage = lazy(() => import('@/features/catalogo/CatalogoPage'));
+const CadastroPage = lazy(() => import('@/features/catalogo/CadastroPage'));
+const ImportarPage = lazy(() => import('@/features/catalogo/ImportarPage'));
+const UsuariosPage = lazy(() => import('@/features/usuarios/UsuariosPage'));
+const PerfilPage = lazy(() => import('@/features/perfil/PerfilPage'));
+const LogsPage = lazy(() => import('@/features/logs/LogsPage'));
+const LgpdPage = lazy(() => import('@/features/lgpd/LgpdPage'));
+const NotFoundPage = lazy(() => import('@/features/NotFoundPage'));
 
-const placeholderViews: Record<string, { title: string; description: string }> = {
-  settings: { title: 'Configurações', description: 'Configurações do portal.' },
-  help: { title: 'Ajuda', description: 'Suporte e documentação.' },
-};
-
-function App() {
-  const [activeView, setActiveView] = useState('catalog');
-  const [selectedPart, setSelectedPart] = useState<Part | null>(null);
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [sidebarPinned, setSidebarPinned] = useState(false);
-  const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
-
-  const contentPadding = sidebarPinned && sidebarExpanded ? 'pl-64' : 'pl-16';
-
-  const handlePartUpdated = (updated: Part) => {
-    setSelectedPart(updated);
-    setCatalogRefreshKey((key) => key + 1);
-  };
-
+function Carregando({ fullScreen = false }: { fullScreen?: boolean }) {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Sidebar
-        activeView={activeView}
-        onNavigate={setActiveView}
-        expanded={sidebarExpanded}
-        pinned={sidebarPinned}
-        onExpandChange={setSidebarExpanded}
-        onPinnedChange={setSidebarPinned}
-      />
-
-      {/* Main content — padding adjusts when sidebar is pinned */}
-      <div className={`transition-all duration-300 ease-in-out ${contentPadding}`}>
-        {/* Top bar */}
-        <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 h-16 flex items-center justify-between px-6">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <span className="text-slate-300">Portal</span>
-            <span className="text-slate-300">/</span>
-            <span className="text-slate-600 font-medium">
-              {viewTitles[activeView] || ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="relative text-slate-400 hover:text-slate-600 transition-colors">
-              <Bell size={20} />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white text-xs font-bold">
-                CL
-              </div>
-              <span className="text-sm font-medium text-slate-600 hidden sm:block">
-                Colaborador
-              </span>
-            </div>
-          </div>
-        </header>
-
-        {/* Page content */}
-        <main>
-          {!isSupabaseConfigured && !placeholderViews[activeView] && <SetupNotice />}
-          {isSupabaseConfigured && activeView === 'catalog' && (
-            <CatalogView onSelectPart={setSelectedPart} refreshKey={catalogRefreshKey} />
-          )}
-          {isSupabaseConfigured && activeView === 'register' && (
-            <RegisterView onRegistered={() => setCatalogRefreshKey((key) => key + 1)} />
-          )}
-          {placeholderViews[activeView] && (
-            <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-              <h1 className="text-2xl font-bold text-slate-800 mb-1">
-                {placeholderViews[activeView].title}
-              </h1>
-              <p className="text-slate-500 text-sm">
-                {placeholderViews[activeView].description}
-              </p>
-            </div>
-          )}
-        </main>
-      </div>
-
-      {/* Part detail modal */}
-      {selectedPart && (
-        <PartDetailModal
-          key={selectedPart.id}
-          part={selectedPart}
-          onClose={() => setSelectedPart(null)}
-          onPartUpdated={handlePartUpdated}
-        />
-      )}
+    <div className={`flex items-center justify-center ${fullScreen ? 'min-h-screen bg-background' : 'py-20'}`}>
+      <Loader2 size={32} className="animate-spin text-brand-strong" aria-label="Carregando" />
     </div>
   );
 }
 
-export default App;
+const pagina = (node: ReactNode) => <Suspense fallback={<Carregando />}>{node}</Suspense>;
+const fluxo = (rota: string, node: ReactNode) => (
+  <RotaDeFluxo rota={rota}>
+    <Suspense fallback={<Carregando fullScreen />}>{node}</Suspense>
+  </RotaDeFluxo>
+);
+
+export default function App() {
+  if (!isSupabaseConfigured) return <SetupNotice />;
+
+  return (
+    <BrowserRouter>
+      <ToastProvider>
+        <AuthProvider>
+          <StepUpProvider>
+            <Routes>
+              <Route path={ROTAS.login} element={fluxo(ROTAS.login, <LoginPage />)} />
+              <Route path={ROTAS.desafioMfa} element={fluxo(ROTAS.desafioMfa, <MfaChallengePage />)} />
+              <Route path={ROTAS.primeiroAcesso} element={fluxo(ROTAS.primeiroAcesso, <FirstAccessPage />)} />
+              <Route path={ROTAS.cadastroMfa} element={fluxo(ROTAS.cadastroMfa, <MfaEnrollPage />)} />
+
+              <Route
+                element={
+                  <RotaProtegida>
+                    <AppShell />
+                  </RotaProtegida>
+                }
+              >
+                <Route index element={<Navigate to={ROTAS.inicio} replace />} />
+                <Route path="/dashboard" element={pagina(<DashboardPage />)} />
+                <Route path="/catalogo" element={pagina(<CatalogoPage />)} />
+                <Route path="/cadastro" element={pagina(<CadastroPage />)} />
+                <Route path="/importar" element={pagina(<ImportarPage />)} />
+                <Route path="/perfil" element={pagina(<PerfilPage />)} />
+                <Route path="/lgpd" element={pagina(<LgpdPage />)} />
+                <Route path="/usuarios" element={<SomenteAdmin>{pagina(<UsuariosPage />)}</SomenteAdmin>} />
+                <Route path="/logs" element={<SomenteAdmin>{pagina(<LogsPage />)}</SomenteAdmin>} />
+                <Route path="*" element={pagina(<NotFoundPage />)} />
+              </Route>
+            </Routes>
+          </StepUpProvider>
+        </AuthProvider>
+      </ToastProvider>
+    </BrowserRouter>
+  );
+}

@@ -27,3 +27,6 @@ public/data/
 
 # Estado local da CLI do Supabase
 supabase/.temp/
+
+# Cache do TypeScript
+*.tsbuildinfo

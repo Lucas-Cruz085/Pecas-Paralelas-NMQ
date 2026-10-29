@@ -8,7 +8,7 @@ import {
   Loader2,
   Image as ImageIcon,
 } from 'lucide-react';
-import { supabase, getErrorMessage, uploadPartPhoto, validatePhoto } from '@/lib/supabase';
+import { supabase, getErrorMessage, preparePhoto, uploadPartPhoto, validatePhoto } from '@/lib/supabase';
 
 interface RegisterViewProps {
   onRegistered: () => void;
@@ -66,7 +66,9 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
     setSuccess(false);
 
     try {
-      const photoUrl = photoFile ? await uploadPartPhoto(photoFile, normalizedPartNumber) : null;
+      const photoUrl = photoFile
+        ? await uploadPartPhoto(await preparePhoto(photoFile), normalizedPartNumber)
+        : null;
 
       const { error: insertError } = await supabase.from('parts').insert({
         part_number: normalizedPartNumber,
@@ -89,30 +91,30 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto">
       {/* Page title */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-            <PackagePlus size={24} className="text-blue-600" />
+          <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
+            <PackagePlus size={24} className="text-brand-strong" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Cadastro de Peças</h1>
+          <h1 className="text-2xl font-bold text-foreground">Cadastro de Peças</h1>
         </div>
-        <p className="text-slate-500 text-sm">
+        <p className="text-muted-foreground text-sm">
           Cadastre uma nova peça paralela no catálogo informando o part number, descrição e foto do item.
         </p>
       </div>
 
       {/* Success banner */}
       {success && (
-        <div className="mb-6 flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 animate-fadeIn">
-          <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
-          <p className="text-sm text-green-700 font-medium">
+        <div className="mb-6 flex items-center gap-3 bg-success/10 border border-success/30 rounded-xl px-4 py-3 animate-fadeIn">
+          <CheckCircle2 size={20} className="text-success flex-shrink-0" />
+          <p className="text-sm text-success font-medium">
             Peça cadastrada com sucesso! Você pode cadastrar outra peça ou pesquisar no catálogo.
           </p>
           <button
             onClick={() => setSuccess(false)}
-            className="ml-auto text-green-600 hover:text-green-700"
+            className="ml-auto text-success hover:text-success"
           >
             <X size={18} />
           </button>
@@ -121,12 +123,12 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
 
       {/* Error banner */}
       {error && (
-        <div className="mb-6 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 animate-fadeIn">
-          <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
-          <p className="text-sm text-red-700 font-medium">{error}</p>
+        <div className="mb-6 flex items-center gap-3 bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 animate-fadeIn">
+          <AlertCircle size={20} className="text-destructive flex-shrink-0" />
+          <p className="text-sm text-destructive font-medium">{error}</p>
           <button
             onClick={() => setError(null)}
-            className="ml-auto text-red-600 hover:text-red-700"
+            className="ml-auto text-destructive hover:text-destructive"
           >
             <X size={18} />
           </button>
@@ -134,11 +136,11 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
+      <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl p-6 space-y-6 shadow-sm">
         {/* Part Number */}
         <div>
-          <label htmlFor="partNumber" className="block text-sm font-semibold text-slate-700 mb-2">
-            Part Number <span className="text-red-500">*</span>
+          <label htmlFor="partNumber" className="block text-sm font-semibold text-foreground mb-2">
+            Part Number <span className="text-destructive">*</span>
           </label>
           <input
             id="partNumber"
@@ -146,17 +148,17 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
             value={partNumber}
             onChange={(e) => setPartNumber(e.target.value)}
             placeholder="Ex: PAR-OF001"
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all font-mono"
           />
-          <p className="text-xs text-slate-400 mt-1.5">
+          <p className="text-xs text-muted-foreground mt-1.5">
             Código único de identificação da peça paralela.
           </p>
         </div>
 
         {/* Description */}
         <div>
-          <label htmlFor="description" className="block text-sm font-semibold text-slate-700 mb-2">
-            Descrição <span className="text-red-500">*</span>
+          <label htmlFor="description" className="block text-sm font-semibold text-foreground mb-2">
+            Descrição <span className="text-destructive">*</span>
           </label>
           <textarea
             id="description"
@@ -164,16 +166,16 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Ex: Filtro de óleo motor 2.0 16V"
             rows={3}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+            className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all resize-none"
           />
-          <p className="text-xs text-slate-400 mt-1.5">
+          <p className="text-xs text-muted-foreground mt-1.5">
             Descrição que aparecerá na pesquisa do catálogo.
           </p>
         </div>
 
         {/* Photo Upload */}
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">
+          <label className="block text-sm font-semibold text-foreground mb-2">
             Foto do Item
           </label>
           <input
@@ -188,22 +190,22 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-slate-300 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-blue-400 hover:bg-blue-50/50 transition-all group"
+              className="w-full border-2 border-dashed border-input rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:border-brand/60 hover:bg-brand/10 transition-all group"
             >
-              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                <Upload size={24} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center group-hover:bg-brand/20 transition-colors">
+                <Upload size={24} className="text-muted-foreground group-hover:text-brand-strong transition-colors" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-slate-600">
+                <p className="text-sm font-medium text-foreground/80">
                   Clique para selecionar uma foto
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  PNG, JPG até 5 MB
+                <p className="text-xs text-muted-foreground mt-1">
+                  PNG, JPG até 20 MB
                 </p>
               </div>
             </button>
           ) : (
-            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+            <div className="relative rounded-xl overflow-hidden border border-border bg-background">
               <img
                 src={photoPreview}
                 alt="Pré-visualização da peça"
@@ -225,7 +227,7 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
         </div>
 
         {/* Submit */}
-        <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
           <button
             type="button"
             onClick={() => {
@@ -235,14 +237,14 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
               setError(null);
               setSuccess(false);
             }}
-            className="px-5 py-2.5 text-slate-600 font-medium rounded-xl hover:bg-slate-100 transition-colors"
+            className="px-5 py-2.5 text-foreground/80 font-medium rounded-xl hover:bg-muted transition-colors"
           >
             Limpar
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/20 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-2.5 bg-brand text-brand-foreground font-medium rounded-xl hover:brightness-105 transition-colors shadow-md shadow-brand/30 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {saving ? (
               <>
