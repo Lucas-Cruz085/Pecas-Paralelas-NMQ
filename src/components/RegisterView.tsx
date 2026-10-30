@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { supabase, getErrorMessage, preparePhoto, uploadPartPhoto, validatePhoto } from '@/lib/supabase';
+import { usePartFilterOptions } from '@/lib/partFilters';
 
 interface RegisterViewProps {
   onRegistered: () => void;
@@ -17,6 +18,10 @@ interface RegisterViewProps {
 export default function RegisterView({ onRegistered }: RegisterViewProps) {
   const [partNumber, setPartNumber] = useState('');
   const [description, setDescription] = useState('');
+  const [brand, setBrand] = useState('');
+  const [group, setGroup] = useState('');
+  const [registeredCount, setRegisteredCount] = useState(0);
+  const options = usePartFilterOptions(registeredCount);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -73,6 +78,8 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
       const { error: insertError } = await supabase.from('parts').insert({
         part_number: normalizedPartNumber,
         description: description.trim(),
+        supplier: brand.trim(),
+        category: group.trim(),
         photo_url: photoUrl,
       });
 
@@ -81,6 +88,9 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
       setSuccess(true);
       setPartNumber('');
       setDescription('');
+      setBrand('');
+      setGroup('');
+      setRegisteredCount((n) => n + 1);
       handleRemovePhoto();
       onRegistered();
     } catch (err) {
@@ -170,6 +180,53 @@ export default function RegisterView({ onRegistered }: RegisterViewProps) {
           />
           <p className="text-xs text-muted-foreground mt-1.5">
             Descrição que aparecerá na pesquisa do catálogo.
+          </p>
+        </div>
+
+        {/* Marca e Grupo */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="brand" className="block text-sm font-semibold text-foreground mb-2">
+              Marca / Fornecedor
+            </label>
+            <input
+              id="brand"
+              type="text"
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              list="register-brand-options"
+              placeholder="Ex: WURTH"
+              maxLength={120}
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
+            />
+            <datalist id="register-brand-options">
+              {options.supplier.map((o) => (
+                <option key={o.value} value={o.value} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label htmlFor="group" className="block text-sm font-semibold text-foreground mb-2">
+              Grupo
+            </label>
+            <input
+              id="group"
+              type="text"
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+              list="register-group-options"
+              placeholder="Opcional: atribua depois, se preferir"
+              maxLength={120}
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-transparent transition-all"
+            />
+            <datalist id="register-group-options">
+              {options.category.map((o) => (
+                <option key={o.value} value={o.value} />
+              ))}
+            </datalist>
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2 -mt-2">
+            Usados nos filtros do catálogo. Escolha um valor já existente para manter a lista organizada.
           </p>
         </div>
 

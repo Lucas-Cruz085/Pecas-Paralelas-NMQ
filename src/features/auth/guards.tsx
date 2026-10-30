@@ -35,10 +35,10 @@ export function RotaProtegida({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Só admin. O servidor e a RLS barram de qualquer forma; aqui o conteúdo nem renderiza. */
-export function SomenteAdmin({ children }: { children: ReactNode }) {
+/** Rota restrita por papel (lista em MENU). O servidor e a RLS barram de qualquer forma; aqui o conteúdo nem renderiza. */
+export function RotaPorPapel({ children }: { children: ReactNode }) {
   const { papel } = useAuth();
   const location = useLocation();
-  if (!rotaPermitida(location.pathname, papel)) return <Navigate to={ROTAS.dashboard} replace />;
+  if (!rotaPermitida(location.pathname, papel)) return <Navigate to={ROTAS.inicio} replace />;
   return <>{children}</>;
 }

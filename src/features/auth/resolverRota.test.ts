@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as servidor from '../../../supabase/functions/_shared/portalConfig.ts';
-import { DOMINIO_TECNICO, SEGURANCA, USERNAME_RE, menuParaPapel } from '@/config/portal';
+import { DOMINIO_TECNICO, SEGURANCA, USERNAME_RE, menuParaPapel, podeEditarCatalogo } from '@/config/portal';
 import { ROTAS, mfaObrigatorioPara, resolverRota, rotaPermitida, type EstadoSessao } from './resolverRota';
 
 const completo: EstadoSessao = {
@@ -41,7 +41,7 @@ describe('resolverRota', () => {
 });
 
 describe('menu e rotas por papel', () => {
-  const rotas = (papel: 'admin' | 'user') => menuParaPapel(papel).flatMap((s) => s.itens.map((i) => i.rota));
+  const rotas = (papel: 'admin' | 'user' | 'consultor') => menuParaPapel(papel).flatMap((s) => s.itens.map((i) => i.rota));
 
   it('Logs e Usuários só aparecem para admin', () => {
     expect(rotas('user')).not.toContain('/logs');
@@ -60,6 +60,17 @@ describe('menu e rotas por papel', () => {
     expect(rotaPermitida('/usuarios', 'user')).toBe(false);
     expect(rotaPermitida('/usuarios', 'admin')).toBe(true);
     expect(rotaPermitida('/catalogo', 'user')).toBe(true);
+  });
+
+  it('consultor vê só o catálogo e a própria conta', () => {
+    expect(rotas('consultor')).toEqual(['/catalogo', '/perfil', '/lgpd']);
+    for (const rota of ['/dashboard', '/cadastro', '/importar', '/usuarios', '/logs']) {
+      expect(rotaPermitida(rota, 'consultor')).toBe(false);
+    }
+    expect(rotaPermitida('/catalogo', 'consultor')).toBe(true);
+    expect(podeEditarCatalogo('consultor')).toBe(false);
+    expect(podeEditarCatalogo('user')).toBe(true);
+    expect(podeEditarCatalogo('admin')).toBe(true);
   });
 });
 

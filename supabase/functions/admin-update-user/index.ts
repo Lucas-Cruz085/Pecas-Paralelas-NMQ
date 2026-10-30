@@ -17,7 +17,7 @@ const schema = z.object({
   nome: z.string().trim().min(2, 'Informe o nome completo.').max(120, 'Nome muito longo.'),
   setor: optionalText,
   cargo: optionalText,
-  papel: z.enum(['admin', 'user']),
+  papel: z.enum(['admin', 'user', 'consultor']),
   ativo: z.boolean(),
 });
 
@@ -36,7 +36,8 @@ serve(async (ctx) => {
   if (!target) throw new HttpError(404, 'NOT_FOUND', 'Usuário não encontrado.');
 
   const { data: roles } = await svc.from('pp_user_roles').select('role').eq('user_id', input.user_id);
-  const currentRole = roles?.some((r) => r.role === 'admin') ? 'admin' : 'user';
+  const has = (role: string) => roles?.some((r) => r.role === role);
+  const currentRole = has('admin') ? 'admin' : has('user') ? 'user' : has('consultor') ? 'consultor' : 'user';
   const roleChanged = currentRole !== input.papel;
   const activeChanged = target.active !== input.ativo;
 

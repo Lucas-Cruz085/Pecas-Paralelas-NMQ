@@ -1,4 +1,4 @@
-import type { Papel } from '@/config/portal';
+import { rotaLiberadaParaPapel, type Papel } from '@/config/portal';
 
 export const ROTAS = {
   login: '/auth',
@@ -35,7 +35,8 @@ export function resolverRota(estado: EstadoSessao, destino: string = ROTAS.inici
 
 export function rotaPermitida(pathname: string, papel: Papel | null): boolean {
   const restrita = ROTAS_ADMIN.some((rota) => pathname === rota || pathname.startsWith(`${rota}/`));
-  return !restrita || papel === 'admin';
+  if (restrita && papel !== 'admin') return false;
+  return rotaLiberadaParaPapel(pathname, papel);
 }
 
 export function ehRotaDeFluxo(pathname: string): boolean {

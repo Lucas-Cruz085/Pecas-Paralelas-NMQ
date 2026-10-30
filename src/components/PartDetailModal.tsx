@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   X,
-  Tag,
   Package,
   DollarSign,
   Clipboard,
@@ -28,12 +27,15 @@ import {
 } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/format';
 import { normalizePartNumber } from '@/lib/partCodes';
+import { usePartFilterOptions } from '@/lib/partFilters';
 
 interface PartDetailModalProps {
   part: Part;
   onClose: () => void;
   onPartUpdated?: (updated: Part) => void;
   onPartDeleted?: () => void;
+  /** Consultor: só visualiza (sem editar, excluir ou mexer na foto). A RLS também barra a escrita. */
+  readOnly?: boolean;
 }
 
 function stripQuery(url: string | null) {
@@ -46,7 +48,7 @@ function formatDate(value: string | null) {
   return `${d}/${m}/${y}`;
 }
 
-export default function PartDetailModal({ part, onClose, onPartUpdated, onPartDeleted }: PartDetailModalProps) {
+export default function PartDetailModal({ part, onClose, onPartUpdated, onPartDeleted, readOnly = false }: PartDetailModalProps) {
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(part.photo_url);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +149,7 @@ export default function PartDetailModal({ part, onClose, onPartUpdated, onPartDe
             </h2>
           </div>
           <div className="flex items-center gap-1">
-            {!editing && (
+            {!editing && !readOnly && (
               <>
                 <button
                   onClick={() => setEditing(true)}
@@ -225,10 +227,15 @@ export default function PartDetailModal({ part, onClose, onPartUpdated, onPartDe
                 onChange={handlePhotoUpload}
                 className="hidden"
               />
-              {currentPhotoUrl ? (
+              {readOnly && !currentPhotoUrl ? (
+                <div className="w-full h-32 rounded-xl bg-muted border border-border flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <Package size={28} strokeWidth={1.5} />
+                  <span className="text-xs">Sem foto cadastrada</span>
+                </div>
+              ) : currentPhotoUrl ? (
                 <div className="relative w-full h-64 rounded-xl overflow-hidden bg-card border border-border flex items-center justify-center">
                   <img src={currentPhotoUrl} alt={part.description} className="w-full h-full object-contain" />
-                  <div className="absolute bottom-3 right-3 flex gap-2">
+                  <div className={`absolute bottom-3 right-3 flex gap-2 ${readOnly ? 'hidden' : ''}`}>
                     <button
                       type="button"
                       onClick={handleRemovePhoto}
@@ -287,9 +294,8 @@ export default function PartDetailModal({ part, onClose, onPartUpdated, onPartDe
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <InfoField icon={Truck} label="Fornecedor" value={part.supplier || '—'} />
-                <InfoField icon={Tag} label="Marca" value={part.brand || '—'} />
-                <InfoField icon={Clipboard} label="Categoria" value={part.category || '—'} />
+                <InfoField icon={Truck} label="Marca / Fornecedor" value={part.supplier || '—'} />
+                <InfoField icon={Clipboard} label="Grupo" value={part.category || 'Não atribuído'} />
                 <InfoField icon={Hash} label="Referência OEM" value={part.oem_reference || '—'} />
                 <InfoField icon={Calendar} label="Última compra" value={formatDate(part.last_purchase_date)} />
                 <InfoField icon={DollarSign} label="Custo" value={formatCurrency(part.cost_price)} />
@@ -368,6 +374,7 @@ function PartEditForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const filterOptions = usePartFilterOptions();
 
   const hasBranches = Object.keys(branchQty).length > 0;
   const branchTotal = Object.values(branchQty).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
@@ -446,14 +453,27 @@ function PartEditForm({
       </FormField>
 
       <div className="grid sm:grid-cols-2 gap-4">
-        <FormField label="Fornecedor">
-          <input value={form.supplier} onChange={set('supplier')} className={inputClass} />
+        <FormField label="Marca / Fornecedor">
+          <input value={form.supplier} onChange={set('supplier')} list="part-edit-supplier-options" className={inputClass} />
+          <datalist id="part-edit-supplier-options">
+            {filterOptions.supplier.map((o) => (
+              <option key={o.value} value={o.value} />
+            ))}
+          </datalist>
         </FormField>
-        <FormField label="Marca">
-          <input value={form.brand} onChange={set('brand')} className={inputClass} />
-        </FormField>
-        <FormField label="Categoria">
-          <input value={form.category} onChange={set('category')} className={inputClass} />
+        <FormField label="Grupo">
+          <input
+            value={form.category}
+            onChange={set('category')}
+            list="part-edit-group-options"
+            placeholder="Atribuir grupo (ex.: Motor, Hidráulico)"
+            className={inputClass}
+          />
+          <datalist id="part-edit-group-options">
+            {filterOptions.category.map((o) => (
+              <option key={o.value} value={o.value} />
+            ))}
+          </datalist>
         </FormField>
         <FormField label="Referência OEM">
           <input value={form.oem_reference} onChange={set('oem_reference')} className={inputClass} />

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Package, AlertCircle, Loader2, WifiOff, ImageIcon, X, FileUp } from 'lucide-react';
 import { supabase, getErrorMessage, type Part } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/format';
+import { Select } from '@/components/ui/Field';
+import { ilikeExact, usePartFilterOptions, type FilterOption } from '@/lib/partFilters';
 
 interface CatalogViewProps {
   onSelectPart: (part: Part) => void;
@@ -17,7 +19,14 @@ function sanitizeSearchTerm(query: string): string {
   return query.replace(/[,()"'\\%_*]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function buildQuery(term: string, onlyWithPhoto: boolean) {
+/** Marca = fornecedor (supplier). Grupo = category. */
+interface CatalogFilters {
+  onlyWithPhoto: boolean;
+  brand: string;
+  group: string;
+}
+
+function buildQuery(term: string, { onlyWithPhoto, brand, group }: CatalogFilters) {
   let query = supabase.from('parts').select('*', { count: 'exact' });
 
   if (term) {
@@ -37,12 +46,52 @@ function buildQuery(term: string, onlyWithPhoto: boolean) {
   }
 
   if (onlyWithPhoto) query = query.not('photo_url', 'is', null);
+  if (brand) query = query.ilike('supplier', ilikeExact(brand));
+  if (group) query = query.eq('category', group);
   return query.order('part_number');
+}
+
+function FilterSelect({
+  label,
+  emptyLabel,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  emptyLabel: string;
+  value: string;
+  options: FilterOption[];
+  onChange: (value: string) => void;
+}) {
+  const disabled = options.length === 0 && !value;
+  return (
+    <label className="flex items-center gap-2 text-sm text-foreground/80">
+      <span className="font-medium">{label}</span>
+      <Select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        title={disabled ? `${emptyLabel}: atribua o ${label.toLowerCase()} nas peças (edição da peça, Cadastro ou planilha).` : undefined}
+        className="!h-9 min-w-[10rem] max-w-[14rem] !py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <option value="">{disabled ? emptyLabel : 'Todos'}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.value} ({o.total})
+          </option>
+        ))}
+      </Select>
+    </label>
+  );
 }
 
 export default function CatalogView({ onSelectPart, onGoToImport, refreshKey = 0 }: CatalogViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [onlyWithPhoto, setOnlyWithPhoto] = useState(false);
+  const [brandFilter, setBrandFilter] = useState('');
+  const [groupFilter, setGroupFilter] = useState('');
+  const filterOptions = usePartFilterOptions(refreshKey);
   const [parts, setParts] = useState<Part[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -55,7 +104,8 @@ export default function CatalogView({ onSelectPart, onGoToImport, refreshKey = 0
   const fetchPage = useCallback(
     async (from: number) => {
       const requestId = requestIdRef.current;
-      const { data, count, error: queryError } = await buildQuery(term, onlyWithPhoto).range(
+      const filters = { onlyWithPhoto, brand: brandFilter, group: groupFilter };
+      const { data, count, error: queryError } = await buildQuery(term, filters).range(
         from,
         from + PAGE_SIZE - 1
       );
@@ -71,7 +121,7 @@ export default function CatalogView({ onSelectPart, onGoToImport, refreshKey = 0
       setTotal(count ?? 0);
       setParts((prev) => (from === 0 ? ((data as Part[]) ?? []) : [...prev, ...((data as Part[]) ?? [])]));
     },
-    [term, onlyWithPhoto]
+    [term, onlyWithPhoto, brandFilter, groupFilter]
   );
 
   useEffect(() => {
@@ -90,7 +140,14 @@ export default function CatalogView({ onSelectPart, onGoToImport, refreshKey = 0
     setLoadingMore(false);
   };
 
-  const hasFilter = Boolean(term) || onlyWithPhoto;
+  const hasExtraFilter = onlyWithPhoto || Boolean(brandFilter) || Boolean(groupFilter);
+  const hasFilter = Boolean(term) || hasExtraFilter;
+
+  const clearFilters = () => {
+    setOnlyWithPhoto(false);
+    setBrandFilter('');
+    setGroupFilter('');
+  };
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -136,16 +193,42 @@ export default function CatalogView({ onSelectPart, onGoToImport, refreshKey = 0
             </>
           )}
         </p>
-        <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={onlyWithPhoto}
-            onChange={(e) => setOnlyWithPhoto(e.target.checked)}
-            className="w-4 h-4 rounded border-input text-brand-strong focus:ring-brand/40"
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <FilterSelect
+            label="Marca"
+            emptyLabel="Sem marcas"
+            value={brandFilter}
+            options={filterOptions.supplier}
+            onChange={setBrandFilter}
           />
-          <ImageIcon size={16} className="text-muted-foreground" />
-          Somente com foto
-        </label>
+          <FilterSelect
+            label="Grupo"
+            emptyLabel="Sem grupos"
+            value={groupFilter}
+            options={filterOptions.category}
+            onChange={setGroupFilter}
+          />
+          <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={onlyWithPhoto}
+              onChange={(e) => setOnlyWithPhoto(e.target.checked)}
+              className="w-4 h-4 rounded border-input text-brand-strong focus:ring-brand/40"
+            />
+            <ImageIcon size={16} className="text-muted-foreground" />
+            Somente com foto
+          </label>
+          {hasExtraFilter && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="flex items-center gap-1 text-sm font-medium text-brand-strong hover:underline"
+            >
+              <X size={14} aria-hidden="true" />
+              Limpar filtros
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Results */}
@@ -184,8 +267,8 @@ export default function CatalogView({ onSelectPart, onGoToImport, refreshKey = 0
           </h3>
           <p className="text-muted-foreground text-sm max-w-md">
             {term
-              ? `Não encontramos nenhuma peça paralela com "${searchQuery.trim()}". Verifique o código ou descrição informados.`
-              : 'Nenhuma peça com foto cadastrada.'}
+              ? `Não encontramos nenhuma peça paralela com "${searchQuery.trim()}"${hasExtraFilter ? ' nos filtros selecionados' : ''}. Verifique o código ou descrição informados.`
+              : 'Nenhuma peça encontrada com os filtros selecionados.'}
           </p>
         </div>
       )}
@@ -283,9 +366,8 @@ function ProductCard({ part, onClick }: { part: Part; onClick: () => void }) {
         <p className="mt-2 text-sm font-semibold text-foreground leading-snug line-clamp-2 min-h-[2.5rem]">
           {part.description}
         </p>
-        {(part.supplier || part.brand) && (
-          <p className="mt-1 text-xs text-muted-foreground truncate">{part.supplier || part.brand}</p>
-        )}
+        {part.supplier && <p className="mt-1 text-xs text-muted-foreground truncate">{part.supplier}</p>}
+        {part.category && <p className="mt-0.5 text-[11px] text-muted-foreground/80 truncate">Grupo: {part.category}</p>}
         <div className="mt-auto pt-3 flex items-end justify-between gap-2">
           <p className="text-lg font-bold text-foreground">{formatCurrency(part.unit_price)}</p>
           <span className="text-xs font-medium text-brand-strong opacity-0 group-hover:opacity-100 transition-opacity">

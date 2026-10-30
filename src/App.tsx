@@ -5,7 +5,7 @@ import SetupNotice from '@/components/SetupNotice';
 import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider } from '@/features/auth/AuthProvider';
-import { RotaDeFluxo, RotaProtegida, SomenteAdmin } from '@/features/auth/guards';
+import { RotaDeFluxo, RotaPorPapel, RotaProtegida } from '@/features/auth/guards';
 import { ROTAS } from '@/features/auth/resolverRota';
 import { StepUpProvider } from '@/features/auth/StepUp';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -61,14 +61,14 @@ export default function App() {
                 }
               >
                 <Route index element={<Navigate to={ROTAS.inicio} replace />} />
-                <Route path="/dashboard" element={pagina(<DashboardPage />)} />
+                <Route path="/dashboard" element={<RotaPorPapel>{pagina(<DashboardPage />)}</RotaPorPapel>} />
                 <Route path="/catalogo" element={pagina(<CatalogoPage />)} />
-                <Route path="/cadastro" element={pagina(<CadastroPage />)} />
-                <Route path="/importar" element={pagina(<ImportarPage />)} />
+                <Route path="/cadastro" element={<RotaPorPapel>{pagina(<CadastroPage />)}</RotaPorPapel>} />
+                <Route path="/importar" element={<RotaPorPapel>{pagina(<ImportarPage />)}</RotaPorPapel>} />
                 <Route path="/perfil" element={pagina(<PerfilPage />)} />
                 <Route path="/lgpd" element={pagina(<LgpdPage />)} />
-                <Route path="/usuarios" element={<SomenteAdmin>{pagina(<UsuariosPage />)}</SomenteAdmin>} />
-                <Route path="/logs" element={<SomenteAdmin>{pagina(<LogsPage />)}</SomenteAdmin>} />
+                <Route path="/usuarios" element={<RotaPorPapel>{pagina(<UsuariosPage />)}</RotaPorPapel>} />
+                <Route path="/logs" element={<RotaPorPapel>{pagina(<LogsPage />)}</RotaPorPapel>} />
                 <Route path="*" element={pagina(<NotFoundPage />)} />
               </Route>
             </Routes>

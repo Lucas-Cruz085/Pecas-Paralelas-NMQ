@@ -17,7 +17,7 @@ const schema = z.object({
   nome: z.string().trim().min(2, 'Informe o nome completo.').max(120, 'Nome muito longo.'),
   setor: optionalText,
   cargo: optionalText,
-  papel: z.enum(['admin', 'user']),
+  papel: z.enum(['admin', 'user', 'consultor']),
 });
 
 // Dá acesso ao portal a uma conta que já existe no Auth (outro sistema do projeto), sem tocar na senha.

@@ -91,7 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     usuarioCarregado.current = atual.user.id;
     if (perfilRes.data) setPerfil(perfilRes.data);
-    setPapel((papeisRes.data ?? []).some((r) => r.role === 'admin') ? 'admin' : 'user');
+    const papeis = (papeisRes.data ?? []).map((r) => r.role);
+    setPapel(papeis.includes('admin') ? 'admin' : papeis.includes('user') ? 'user' : papeis.includes('consultor') ? 'consultor' : 'user');
     setAal({ atual: aalRes.data?.currentLevel ?? null, proximo: aalRes.data?.nextLevel ?? null });
     setFatores(fatoresRes.data?.all ?? []);
     if (configRes.data?.mfa_policy) setPoliticaMfa(configRes.data.mfa_policy);

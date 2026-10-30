@@ -41,18 +41,25 @@ export const BENEFICIOS_LOGIN: { icone: LucideIcon; texto: string }[] = [
   { icone: ShieldCheck, texto: 'Acesso protegido com autenticação em dois fatores' },
 ];
 
-export type Papel = 'admin' | 'user';
+export type Papel = 'admin' | 'user' | 'consultor';
 
 export const PAPEIS: Record<Papel, string> = {
   admin: 'Administrador',
   user: 'Usuário',
+  consultor: 'Consultor',
 };
+
+/** Quem altera o catálogo (cadastro, edição, importação). A RLS (pp_can_edit_parts) aplica a mesma regra. */
+export const PAPEIS_EDITAM_CATALOGO: Papel[] = ['admin', 'user'];
+
+export const podeEditarCatalogo = (papel: Papel | null) => papel !== null && PAPEIS_EDITAM_CATALOGO.includes(papel);
 
 export interface MenuItem {
   rota: string;
   rotulo: string;
   icone: LucideIcon;
-  somenteAdmin?: boolean;
+  /** Papéis que veem e acessam a rota. Sem a lista, todos os papéis. */
+  papeis?: Papel[];
 }
 
 export interface MenuSecao {
@@ -62,21 +69,21 @@ export interface MenuSecao {
 
 export const MENU: MenuSecao[] = [
   {
-    itens: [{ rota: '/dashboard', rotulo: 'Dashboard', icone: LayoutDashboard }],
+    itens: [{ rota: '/dashboard', rotulo: 'Dashboard', icone: LayoutDashboard, papeis: PAPEIS_EDITAM_CATALOGO }],
   },
   {
     titulo: 'Catálogo',
     itens: [
       { rota: '/catalogo', rotulo: 'Catálogo de Peças', icone: Search },
-      { rota: '/cadastro', rotulo: 'Cadastro de Peças', icone: PackagePlus },
-      { rota: '/importar', rotulo: 'Importar (Excel e Fotos)', icone: FileUp },
+      { rota: '/cadastro', rotulo: 'Cadastro de Peças', icone: PackagePlus, papeis: PAPEIS_EDITAM_CATALOGO },
+      { rota: '/importar', rotulo: 'Importar (Excel e Fotos)', icone: FileUp, papeis: PAPEIS_EDITAM_CATALOGO },
     ],
   },
   {
     titulo: 'Administração',
     itens: [
-      { rota: '/usuarios', rotulo: 'Usuários', icone: Users, somenteAdmin: true },
-      { rota: '/logs', rotulo: 'Auditoria / Logs', icone: ClipboardList, somenteAdmin: true },
+      { rota: '/usuarios', rotulo: 'Usuários', icone: Users, papeis: ['admin'] },
+      { rota: '/logs', rotulo: 'Auditoria / Logs', icone: ClipboardList, papeis: ['admin'] },
     ],
   },
   {
@@ -106,11 +113,23 @@ export const USERNAME_RE = /^[a-z0-9]+(\.[a-z0-9]+)+$/;
 
 export const storageKey = (nome: string) => `${PREFIXO}-${nome}`;
 
+const papelVeItem = (item: MenuItem, papel: Papel | null) => !item.papeis || (papel !== null && item.papeis.includes(papel));
+
 export function menuParaPapel(papel: Papel | null): MenuSecao[] {
   return MENU.map((secao) => ({
     ...secao,
-    itens: secao.itens.filter((item) => !item.somenteAdmin || papel === 'admin'),
+    itens: secao.itens.filter((item) => papelVeItem(item, papel)),
   })).filter((secao) => secao.itens.length > 0);
+}
+
+/** Rota liberada para o papel, pela mesma lista do menu (o menu não é a permissão: a RLS e as funções barram no servidor). */
+export function rotaLiberadaParaPapel(pathname: string, papel: Papel | null): boolean {
+  for (const secao of MENU) {
+    for (const item of secao.itens) {
+      if (pathname === item.rota || pathname.startsWith(`${item.rota}/`)) return papelVeItem(item, papel);
+    }
+  }
+  return true;
 }
 
 export function rotuloDaRota(pathname: string): string {
