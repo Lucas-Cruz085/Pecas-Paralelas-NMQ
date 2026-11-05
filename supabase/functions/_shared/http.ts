@@ -47,16 +47,19 @@ export function parse<T extends z.ZodTypeAny>(schema: T, body: unknown): z.infer
 }
 
 /** Envolve a função: CORS, método, limite de corpo, request_id e erros sem vazar detalhes internos. */
-export function serve(handler: (ctx: RequestContext) => Promise<unknown>) {
+export function serve(
+  handler: (ctx: RequestContext) => Promise<unknown>,
+  { maxBodyBytes = MAX_BODY_BYTES }: { maxBodyBytes?: number } = {},
+) {
   Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req) });
     const requestId = crypto.randomUUID();
     try {
       if (req.method !== 'POST') throw new HttpError(405, 'METHOD_NOT_ALLOWED', 'Método não permitido.');
       const declared = Number(req.headers.get('content-length') ?? '0');
-      if (declared > MAX_BODY_BYTES) throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'Requisição muito grande.');
+      if (declared > maxBodyBytes) throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'Requisição muito grande.');
       const raw = await req.text();
-      if (new TextEncoder().encode(raw).length > MAX_BODY_BYTES) {
+      if (new TextEncoder().encode(raw).length > maxBodyBytes) {
         throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'Requisição muito grande.');
       }
       let body: unknown = {};

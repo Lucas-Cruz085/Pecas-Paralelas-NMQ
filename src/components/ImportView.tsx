@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FileSpreadsheet, Images, Upload } from 'lucide-react';
 import SpreadsheetImport from '@/components/SpreadsheetImport';
 import ImageImport from '@/components/ImageImport';
+import StockSyncInfo from '@/components/StockSyncInfo';
 
 type Step = 'spreadsheet' | 'images';
 
@@ -15,17 +16,20 @@ export default function ImportView({ onImported }: { onImported: () => void }) {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
-            <Upload size={24} className="text-brand-strong" />
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
+              <Upload size={24} className="text-brand-strong" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">Importar Peças</h1>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Importar Peças</h1>
+          <p className="text-muted-foreground text-sm">
+            Importe a planilha padrão (Excel) com os itens e depois envie as fotos — cada imagem é vinculada à peça
+            pelo código no nome do arquivo.
+          </p>
         </div>
-        <p className="text-muted-foreground text-sm">
-          Importe a planilha padrão (Excel) com os itens e depois envie as fotos — cada imagem é vinculada à peça
-          pelo código no nome do arquivo.
-        </p>
+        <StockSyncInfo />
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 mb-6">

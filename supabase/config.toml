@@ -6,3 +6,7 @@ verify_jwt = false
 
 [functions.request-password-reset]
 verify_jwt = false
+
+# Chamada pelo n8n sem usuário; autenticada pelo cabeçalho x-sync-token (segredo STOCK_SYNC_TOKEN).
+[functions.sync-stock]
+verify_jwt = false
